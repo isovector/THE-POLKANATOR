@@ -1,7 +1,14 @@
+{-# LANGUAGE DeriveFoldable     #-}
+{-# LANGUAGE StandaloneDeriving #-}
+
 module Lib where
 
+import Control.Applicative
 import Euterpea.Music
 import Euterpea.IO.MIDI.Play
+
+deriving instance Foldable Music
+deriving instance Foldable Primitive
 
 
 maj7 :: PitchClass -> Octave -> [Pitch]
@@ -41,21 +48,21 @@ progression =
   ]
 
 data Hand
-    = LeftHand
-    | RightHand
+    = LeftHand Int
+    | RightHand Int
   deriving (Eq, Ord, Show)
 
 
 myParadiddle17 :: Music Hand
 myParadiddle17 = line
-  [ note en LeftHand
-  , note en RightHand
-  , note en RightHand
-  , note en LeftHand
-  , note en RightHand
-  , note en LeftHand
-  , note en RightHand
-  , note en RightHand
+  [ note en $ LeftHand 0
+  , note en $ RightHand 1
+  , note en $ RightHand 2
+  , note en $ LeftHand 3
+  , note en $ RightHand 4
+  , note en $ LeftHand 5
+  , note en $ RightHand 6
+  , note en $ RightHand 7
   ]
 
 
@@ -70,8 +77,30 @@ bind f (Modify control ma) = Modify control $ bind f ma
 myBar :: [Pitch] -> Music Hand -> Music Pitch
 myBar ((basspitch, bassoctave):remainder) paradiddle = bind f paradiddle
   where
-    f dur LeftHand  = note dur (basspitch, bassoctave - 2)
-    f dur RightHand = musicChord dur remainder
+    f dur (LeftHand _)  = note dur (basspitch, bassoctave - 1)
+    f dur (RightHand _) = musicChord dur remainder
+
+
+maybeAToPrim :: Dur -> Maybe a -> Music a
+maybeAToPrim dur Nothing  = rest dur
+maybeAToPrim dur (Just a) = note dur a
+
+
+makeADiddleDoo :: Dur -> [Music Hand]
+makeADiddleDoo totalDur
+  | totalDur < 1/16 = pure $ rest 0
+  | otherwise = do
+      dur  <- [ totalDur, totalDur / 2 ]
+      hand <- [ Just $ LeftHand 0
+              , Just $ RightHand 0
+              , Nothing
+              ]
+      following <- makeADiddleDoo $ totalDur - dur
+      pure $ removeZeros $
+        line
+          [ maybeAToPrim dur hand
+          , following
+          ]
 
 
 -- (Prim $ Note duration RightHand) ---->
